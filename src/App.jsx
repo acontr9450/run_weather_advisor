@@ -10,6 +10,7 @@ const App = () => {
     // State variables for managing user input, UI elements, and API results.
     const [location, setLocation] = useState('');
     const [time, setTime] = useState('');
+    const [forecastDuration, setForecastDuration] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const [result, setResult] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -37,8 +38,8 @@ const App = () => {
         setResult(null); // Clear previous results
         
         try {
-            // Call the new refactored function from 'api.js'
-            const adviceData = await fetchRunningAdvice(location, time);
+            // Pass the new forecastDuration state to the API function
+            const adviceData = await fetchRunningAdvice(location, time, forecastDuration);
             
             // Check for errors returned by the API function
             if (adviceData.error) {
@@ -58,7 +59,7 @@ const App = () => {
     return (
         <div className="flex items-center justify-center min-h-screen p-4 bg-gradient-to-br from-gray-100 to-gray-300">
             <div className="w-full max-w-lg p-8 bg-white rounded-2xl shadow-xl border border-gray-200">
-                <h1 className="text-4xl font-bold text-center text-gray-800 mb-6">🏃‍♂️ Running Weather Advisor</h1>
+                <h1 className="text-4xl font-bold text-center text-gray-800 mb-6">Running Weather Advisor 🏃‍♂️</h1>
                 <p className="text-center text-gray-600 mb-8">Tell me where you are and when you'd like to run, and I'll tell you if the weather is good!</p>
                 
                 <InputForm
@@ -66,6 +67,8 @@ const App = () => {
                     setLocation={setLocation}
                     time={time}
                     setTime={setTime}
+                    forecastDuration={forecastDuration}
+                    setForecastDuration={setForecastDuration} 
                     isLoading={isLoading}
                     getRunningAdvice={getRunningAdvice}
                 />
