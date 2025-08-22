@@ -31,13 +31,14 @@ export const getCoordinatesForLocation = async (location) => {
 
         // Fallback to the first result if no state/region was provided or no match was found.
         const finalLocation = bestMatch || geoData.results[0];
+        const region = finalLocation.admin1
 
         if (!finalLocation) {
             return { error: "Could not find a location with that name. Please try again." };
         }
 
         const { latitude, longitude } = finalLocation;
-        return { latitude, longitude };
+        return { latitude, longitude, region };
     } catch (error) {
         console.error('Geocoding API call failed:', error);
         return { error: "An unexpected error occurred during location lookup." };
@@ -84,7 +85,7 @@ export const fetchRunningAdvice = async (location, preferredTimeBlock, forecastD
     if (geoResult.error) {
         return geoResult;
     }
-    const { latitude, longitude } = geoResult;
+    const { latitude, longitude, region } = geoResult;
 
     // Step 2: Get weather data for the next 3 days to cover all time blocks.
     const weatherData = await getWeatherForCoordinates(latitude, longitude, 3);
@@ -106,7 +107,6 @@ export const fetchRunningAdvice = async (location, preferredTimeBlock, forecastD
         endDate = new Date(now);
         endDate.setDate(now.getDate() + 1); // Add one day
         endDate.setHours(23, 59, 59, 999);
-        console.log("One day forecast coming up");
     } else if (forecastDuration === 3) {
         // For 'Next 3 Days', filter from the start of the next day to the end of the third day.
         startDate = new Date(now);
@@ -180,7 +180,12 @@ export const fetchRunningAdvice = async (location, preferredTimeBlock, forecastD
     const top3Times = filteredWeather.slice(0, 3);
 
     // Step 5: Format the final output
-    const title = `Top 3 Running Times for ${location} (${preferredTimeBlock})`;
+    const containsComma = location.includes(',');
+    let finalLocation = location;
+    if (!containsComma) {
+        finalLocation += ", " + region;
+    }
+    const title = `Top 3 Running Times for ${finalLocation} (${preferredTimeBlock})`;
     const advice = "Here are the top three recommended times for your run based on the weather forecast:";
 
     let details = top3Times.map((item, index) => {
