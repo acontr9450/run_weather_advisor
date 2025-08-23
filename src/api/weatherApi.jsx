@@ -22,6 +22,8 @@ const getCachedData = (key) => {
     }
 
     const item = JSON.parse(cachedItem);
+    console.log(item.data);
+    console.log(item.location);
     const now = new Date().getTime();
 
     // Check if the cached data has expired.
@@ -32,18 +34,24 @@ const getCachedData = (key) => {
     }
 
     console.log(`Using cached data for key: ${key}`);
-    return item.data;
+    const weather = item.data;
+    const location = item.location;
+    console.log(weather);
+    console.log(location);
+    return { weather, location };
 };
 
 /**
  * Saves data to the cache with a timestamp.
  * @param {string} key The cache key.
- * @param {object} data The data to be cached.
+ * @param {object} weather The data to be cached.
+ * @param {string} location The full location in format "city, region"
  */
-const setCachedData = (key, data) => {
+const setCachedData = (key, weather, location) => {
     const now = new Date().getTime();
     const item = {
-        data: data,
+        data: weather,
+        location: location,
         timestamp: now,
     };
     try {
@@ -58,7 +66,7 @@ const setCachedData = (key, data) => {
  * Fetches the latitude and longitude for a given location using the Open-Meteo Geocoding API.
  * This function now handles multi-part location inputs (e.g., "Tyler, Texas") to improve accuracy.
  * @param {string} location The name of the city or place, optionally including a state/region.
- * @returns {Promise<object>} An object containing latitude and longitude or an error.
+ * @returns {Promise<object>} An object containing latitude, longitude, and region or an error.
  */
 export const getCoordinatesForLocation = async (location) => {
     try {
@@ -110,7 +118,17 @@ export const getCoordinatesForLocation = async (location) => {
  */
 export const getWeatherForCoordinates = async (latitude, longitude, forecastDays) => {
     try {
-        const weatherResponse = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,rain,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto&forecast_days=${forecastDays}`);
+        const params = new URLSearchParams({
+            latitude: latitude,
+            longitude: longitude,
+            hourly: 'temperature_2m,apparent_temperature,precipitation_probability,precipitation,rain,wind_speed_10m',
+            temperature_unit: 'fahrenheit',
+            wind_speed_unit: 'mph',
+            precipitation_unit: 'inch',
+            timezone: 'auto',
+            forecast_days: forecastDays,
+        });
+        const weatherResponse = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`);
         const weatherData = await weatherResponse.json();
         return weatherData;
     } catch (error) {
@@ -132,10 +150,11 @@ export const fetchRunningAdvice = async (location, preferredTimeBlock, forecastD
     // Step 1: Check the cache first to see if we have valid, recent data.
     const cacheKey = getCacheKey(location, forecastDuration);
     const cachedData = getCachedData(cacheKey);
+    
     if (cachedData) {
         console.log("Using cached data instead of new API call.");
         // If cached data is available, process it directly.
-        return processWeatherData(cachedData, preferredTimeBlock, forecastDuration);
+        return processWeatherData(cachedData.weather, preferredTimeBlock, forecastDuration, cachedData.location);
     }
 
     // Step 2: Get coordinates if not in cache
@@ -161,7 +180,7 @@ export const fetchRunningAdvice = async (location, preferredTimeBlock, forecastD
     }
 
     // Step 4: Cache the weather data
-    setCachedData(cacheKey, weatherData);
+    setCachedData(cacheKey, weatherData, finalLocation);
 
     // Step 5: Process the weather data and return the result
     return processWeatherData(weatherData, preferredTimeBlock, forecastDuration, finalLocation);
@@ -173,6 +192,7 @@ export const fetchRunningAdvice = async (location, preferredTimeBlock, forecastD
  * @param {object} weatherData The raw weather data object.
  * @param {string} preferredTimeBlock The preferred run time block string.
  * @param {number} forecastDuration The number of days to forecast.
+ * @param {string} location The final location in format "city, region"
  * @returns {object} The formatted running advice result.
  */
 const processWeatherData = (weatherData, preferredTimeBlock, forecastDuration, location) => {
