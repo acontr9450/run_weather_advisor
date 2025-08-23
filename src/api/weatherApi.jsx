@@ -1,3 +1,59 @@
+const CACHE_DURATION_MS = 60 * 60 * 1000;
+
+/**
+ * Creates a unique key for the cache based on the location and forecast duration.
+ * @param {string} location The user-provided location string.
+ * @param {number} forecastDuration The number of days for the forecast.
+ * @returns {string} The unique cache key.
+ */
+const getCacheKey = (location, forecastDuration) => {
+    return `weather_cache_${location.toLowerCase().replace(/[^a-z0-9]/g, '')}_${forecastDuration}d`;
+};
+
+/**
+ * Retrieves data from the cache if it is still valid.
+ * @param {string} key The cache key to look up.
+ * @returns {object|null} The cached data if valid, otherwise null.
+ */
+const getCachedData = (key) => {
+    const cachedItem = localStorage.getItem(key);
+    if (!cachedItem) {
+        return null;
+    }
+
+    const item = JSON.parse(cachedItem);
+    const now = new Date().getTime();
+
+    // Check if the cached data has expired.
+    if (now - item.timestamp > CACHE_DURATION_MS) {
+        console.log(`Cache expired for key: ${key}`);
+        localStorage.removeItem(key); // Remove expired item
+        return null;
+    }
+
+    console.log(`Using cached data for key: ${key}`);
+    return item.data;
+};
+
+/**
+ * Saves data to the cache with a timestamp.
+ * @param {string} key The cache key.
+ * @param {object} data The data to be cached.
+ */
+const setCachedData = (key, data) => {
+    const now = new Date().getTime();
+    const item = {
+        data: data,
+        timestamp: now,
+    };
+    try {
+        localStorage.setItem(key, JSON.stringify(item));
+        console.log(`Data cached successfully for key: ${key}`);
+    } catch (e) {
+        console.error("Failed to save to localStorage:", e);
+    }
+};
+
 /**
  * Fetches the latitude and longitude for a given location using the Open-Meteo Geocoding API.
  * This function now handles multi-part location inputs (e.g., "Tyler, Texas") to improve accuracy.
@@ -72,22 +128,29 @@ export const getWeatherForCoordinates = async (latitude, longitude, forecastDays
  * @returns {Promise<object>} An object containing the running advice or an error.
  */
 export const fetchRunningAdvice = async (location, preferredTimeBlock, forecastDuration) => {
-   // Define the hour ranges for each time block
-    const timeToHourRange = {
-        'morning': { start: 5, end: 12 },
-        'afternoon': { start: 12, end: 17 },
-        'evening': { start: 17, end: 21 },
-        'night': { start: 21, end: 4 }, // Note: This range wraps around midnight
-    };
-    
-// Step 1: Get coordinates
+
+    // Step 1: Check the cache first to see if we have valid, recent data.
+    const cacheKey = getCacheKey(location, forecastDuration);
+    const cachedData = getCachedData(cacheKey);
+    if (cachedData) {
+        console.log("Using cached data instead of new API call.");
+        // If cached data is available, process it directly.
+        return processWeatherData(cachedData, preferredTimeBlock, forecastDuration);
+    }
+
+    // Step 2: Get coordinates if not in cache
     const geoResult = await getCoordinatesForLocation(location);
     if (geoResult.error) {
         return geoResult;
     }
     const { latitude, longitude, region } = geoResult;
+    const containsComma = location.includes(",");
+    let finalLocation = location;
+    if (!containsComma) {
+        finalLocation += ", " + region;
+    }
 
-    // Step 2: Get weather data for the next 3 days to cover all time blocks.
+    // Step 3: Get weather data for the next 3 days to cover all time blocks.
     const weatherData = await getWeatherForCoordinates(latitude, longitude, 3);
     if (weatherData.error) {
         return weatherData;
@@ -97,18 +160,39 @@ export const fetchRunningAdvice = async (location, preferredTimeBlock, forecastD
         return { error: "Failed to get weather forecast. The weather API returned an unexpected or incomplete response." };
     }
 
-    // Step 3: Refine date filtering logic
+    // Step 4: Cache the weather data
+    setCachedData(cacheKey, weatherData);
+
+    // Step 5: Process the weather data and return the result
+    return processWeatherData(weatherData, preferredTimeBlock, forecastDuration, finalLocation);
+};
+
+/**
+ * A new function to handle all the data processing logic, allowing it to be called from both
+ * the cached data and the new API response.
+ * @param {object} weatherData The raw weather data object.
+ * @param {string} preferredTimeBlock The preferred run time block string.
+ * @param {number} forecastDuration The number of days to forecast.
+ * @returns {object} The formatted running advice result.
+ */
+const processWeatherData = (weatherData, preferredTimeBlock, forecastDuration, location) => {
+    const timeToHourRange = {
+        'morning': { start: 5, end: 12 },
+        'afternoon': { start: 12, end: 17 },
+        'evening': { start: 17, end: 21 },
+        'night': { start: 21, end: 4 }, // Note: This range wraps around midnight
+    };
+
+    // Refine date filtering logic
     const now = new Date();
     let startDate, endDate;
 
     if (forecastDuration === 1) {
-        // For 'Today & Tomorrow', filter from the current time to the end of the next day.
         startDate = now;
         endDate = new Date(now);
-        endDate.setDate(now.getDate() + 1); // Add one day
+        endDate.setDate(now.getDate() + 1);
         endDate.setHours(23, 59, 59, 999);
     } else if (forecastDuration === 3) {
-        // For 'Next 3 Days', filter from the start of the next day to the end of the third day.
         startDate = new Date(now);
         startDate.setDate(now.getDate() + 1);
         startDate.setHours(0, 0, 0, 0);
@@ -122,10 +206,13 @@ export const fetchRunningAdvice = async (location, preferredTimeBlock, forecastD
         .map((time, index) => {
             const date = new Date(time);
             const inTimeRange = (date >= startDate && date <= endDate);
+            const timeRange = timeToHourRange[preferredTimeBlock];
+            if (!timeRange) {
+                return null;
+            }
 
             let inTimeBlock = false;
-            // Handle the 'night' time block wrapping around midnight
-            const { start, end } = timeToHourRange[preferredTimeBlock];
+            const { start, end } = timeRange;
             if (start > end) {
                 inTimeBlock = date.getHours() >= start || date.getHours() < end;
             } else {
@@ -156,16 +243,14 @@ export const fetchRunningAdvice = async (location, preferredTimeBlock, forecastD
         return { error: "No forecast data found for the selected time block and duration." };
     }
 
-    // Step 4: Rank the top 3 times
+    // Rank the top 3 times
     filteredWeather.sort((a, b) => {
-        // Primary sort: "Apparent temperature" closest to 65°F
-        const aTempDiff = Math.abs(a.apparentTemperature - 65);
-        const bTempDiff = Math.abs(b.apparentTemperature - 65);
+        const aTempDiff = Math.abs(a.apparentTemperature - 59);
+        const bTempDiff = Math.abs(b.apparentTemperature - 59);
         if (aTempDiff !== bTempDiff) {
             return aTempDiff - bTempDiff;
         }
 
-        // Secondary sort: Lowest precipitation amount, then lowest chance of rain
         if (a.rainAmount !== b.rainAmount) {
             return a.rainAmount - b.rainAmount;
         }
@@ -173,19 +258,13 @@ export const fetchRunningAdvice = async (location, preferredTimeBlock, forecastD
             return a.precipitation - b.precipitation;
         }
 
-        // Tertiary sort: Lowest wind speed
         return a.windSpeed - b.windSpeed;
     });
 
     const top3Times = filteredWeather.slice(0, 3);
 
-    // Step 5: Format the final output
-    const containsComma = location.includes(',');
-    let finalLocation = location;
-    if (!containsComma) {
-        finalLocation += ", " + region;
-    }
-    const title = `Top 3 Running Times for ${finalLocation} (${preferredTimeBlock})`;
+    // Format the final output
+    const title = `Top 3 Running Times for ${location} (${preferredTimeBlock})`;
     const advice = "Here are the top three recommended times for your run based on the weather forecast:";
 
     let details = top3Times.map((item, index) => {
@@ -201,9 +280,8 @@ export const fetchRunningAdvice = async (location, preferredTimeBlock, forecastD
         `;
     }).join('<br><br>');
 
-    // Add a general concluding statement based on the top result
     const bestResult = top3Times[0];
-    if (bestResult.apparentTemperature >= 60 && bestResult.apparentTemperature <= 75 && bestResult.precipitation <= 10 && bestResult.windSpeed < 12) {
+    if (bestResult.apparentTemperature >= 50 && bestResult.apparentTemperature <= 68 && bestResult.precipitation <= 10 && bestResult.windSpeed < 12) {
         details += `<br><br>The top recommendation offers nearly perfect running conditions!`;
     } else {
         details += `<br><br>Check the details for each time to choose the best option for your comfort level.`;
@@ -215,4 +293,5 @@ export const fetchRunningAdvice = async (location, preferredTimeBlock, forecastD
         details,
     };
 };
+
 
