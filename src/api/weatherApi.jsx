@@ -326,11 +326,13 @@ const processWeatherData = (weatherData, preferredTimeBlock, forecastDuration, l
         specialAdvice = "Check the details for each time to choose the best option for your comfort level.";
     }
 
+    console.log(location);
     return {
-        title: `Top 3 Running Times for ${location}`,
+        finalLocation: location,
         advice: advice,
         details: details,
-        specialAdvice: specialAdvice
+        specialAdvice: specialAdvice,
+        preferredTimeBlock: preferredTimeBlock
     };
 };
 

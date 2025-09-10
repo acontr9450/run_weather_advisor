@@ -1,8 +1,7 @@
 import React from 'react';
 
 export const ResultDisplay = ({ result }) => {
-    const location = result.title.replace('Top 3 Running Times for ', '');
-
+    const subTitle = result.finalLocation + ` (` + result.preferredTimeBlock + `)`;
     return (
         <div className="mt-8 p-6 bg-gray-50 rounded-2xl border border-gray-200 animate-fade-in shadow-lg">
             <div className="text-center mb-6">
@@ -10,7 +9,7 @@ export const ResultDisplay = ({ result }) => {
                     Top 3 Running Times for
                 </h2>
                 <h2 className="text-2xl font-bold text-blue-600 mb-2 tracking-tight">
-                    {location}
+                    {subTitle}
                 </h2>
             </div>
 
