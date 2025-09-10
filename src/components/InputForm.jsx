@@ -3,7 +3,7 @@ import React from 'react';
 const timeOptions = [
     { label: 'Morning (5am-12pm)', value: 'morning' },
     { label: 'Afternoon (12pm-5pm)', value: 'afternoon' },
-    { label: 'Evening (5pm -9pm)', value: 'evening' },
+    { label: 'Evening (5pm-9pm)', value: 'evening' },
     { label: 'Night (9pm-4am)', value: 'night' },
 ];
 
@@ -40,7 +40,6 @@ export const InputForm = ({ location, setLocation, time, setTime, forecastDurati
                 ))}
             </div>
         </div>
-
         <div>
             <label className="block text-gray-700 text-sm font-semibold mb-2">Forecast Duration:</label>
             <div className="flex flex-wrap gap-2">

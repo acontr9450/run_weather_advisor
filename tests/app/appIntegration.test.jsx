@@ -4,7 +4,6 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, describe, beforeEach, test, expect } from 'vitest';
 import App from '../../src/App';
 import * as api from '../../src/api/weatherApi.jsx';
-import DOMPurify from 'dompurify';
 
 // Mock the entire api.js module
 vi.mock('../../src/api/weatherApi.jsx', async (importOriginal) => {
@@ -12,17 +11,6 @@ vi.mock('../../src/api/weatherApi.jsx', async (importOriginal) => {
     return {
         ...mod,
         fetchRunningAdvice: vi.fn(),
-    };
-});
-
-// Mock the DOMPurify library to simulate its behavior in tests.
-vi.mock('dompurify', () => {
-    return {
-        __esModule: true,
-        default: {
-            sanitize: vi.fn((input) => input),
-
-        },
     };
 });
 
@@ -97,9 +85,6 @@ describe('App Integration', () => {
             // Check if the result display is present with the correct title.
             expect(screen.getByText(mockResult.title)).toBeInTheDocument();
             expect(screen.getByText(mockResult.advice)).toBeInTheDocument();
-            // Verify sanitization function was called with the correct data
-            expect(DOMPurify.sanitize).toHaveBeenCalledWith(mockResult.title, expect.any(Object));
-            expect(DOMPurify.sanitize).toHaveBeenCalledWith(mockResult.details, expect.any(Object));
         });
     });
 });

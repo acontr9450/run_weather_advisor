@@ -1,4 +1,4 @@
-const CACHE_DURATION_MS = 60 * 60 * 1000;
+const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
 
 /**
  * Creates a unique key for the cache based on the location and forecast duration.
@@ -121,7 +121,7 @@ export const getWeatherForCoordinates = async (latitude, longitude, forecastDays
         const params = new URLSearchParams({
             latitude: latitude,
             longitude: longitude,
-            hourly: 'temperature_2m,apparent_temperature,precipitation_probability,precipitation,rain,wind_speed_10m',
+            hourly: 'temperature_2m,apparent_temperature,precipitation_probability,precipitation,rain,wind_speed_10m,relative_humidity_2m,dew_point_2m,visibility,wind_gusts_10m',
             temperature_unit: 'fahrenheit',
             wind_speed_unit: 'mph',
             precipitation_unit: 'inch',
@@ -240,19 +240,17 @@ const processWeatherData = (weatherData, preferredTimeBlock, forecastDuration, l
             }
 
             if (inTimeRange && inTimeBlock) {
-                const apparentTemp = weatherData.hourly.apparent_temperature[index];
-                const tempF = weatherData.hourly.temperature_2m[index];
-                const windMph = weatherData.hourly.wind_speed_10m[index];
-                const rainIn = weatherData.hourly.rain[index];
-                const precipitationChance = weatherData.hourly.precipitation_probability[index];
-
                 return {
                     time: date,
-                    temperature: tempF,
-                    apparentTemperature: apparentTemp,
-                    precipitation: precipitationChance,
-                    rainAmount: rainIn,
-                    windSpeed: windMph,
+                    temperature: weatherData.hourly.temperature_2m[index],
+                    apparentTemperature: weatherData.hourly.apparent_temperature[index],
+                    precipitation: weatherData.hourly.precipitation_probability[index],
+                    rainAmount: weatherData.hourly.rain[index],
+                    windSpeed: weatherData.hourly.wind_speed_10m[index],
+                    humidity: weatherData.hourly.relative_humidity_2m[index],
+                    dewPoint: weatherData.hourly.dew_point_2m[index],
+                    visibility: weatherData.hourly.visibility[index],
+                    windGusts: weatherData.hourly.wind_gusts_10m[index],
                 };
             }
             return null;
@@ -283,34 +281,56 @@ const processWeatherData = (weatherData, preferredTimeBlock, forecastDuration, l
 
     const top3Times = filteredWeather.slice(0, 3);
 
+    // Group the top 3 times by day
+    const groupedByDay = {};
+    const nowDay = now.getDate();
+    const tomorrowDay = new Date(now);
+    tomorrowDay.setDate(nowDay + 1);
+    const tomorrowDayNumber = tomorrowDay.getDate();
+
+    top3Times.forEach(item => {
+        const day = item.time.getDate();
+        const dayTitle = (day === nowDay) ? "Today" : (day === tomorrowDayNumber ? "Tomorrow" : item.time.toLocaleDateString(undefined, { weekday: 'long' }));
+
+        if (!groupedByDay[dayTitle]) {
+            groupedByDay[dayTitle] = [];
+        }
+
+        groupedByDay[dayTitle].push({
+            time: item.time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
+            temperature: item.temperature.toFixed(1),
+            apparentTemperature: item.apparentTemperature.toFixed(1),
+            precipitation: item.precipitation,
+            rainAmount: item.rainAmount.toFixed(2),
+            windSpeed: item.windSpeed.toFixed(1),
+            humidity: item.humidity,
+            dewPoint: item.dewPoint.toFixed(1),
+            visibility: item.visibility,
+            windGusts: item.windGusts,
+        });
+    });
+
+    const details = Object.keys(groupedByDay).map(dayTitle => ({
+        dayTitle,
+        times: groupedByDay[dayTitle]
+    }));
+
     // Format the final output
-    const title = `Top 3 Running Times for ${location} (${preferredTimeBlock})`;
     const advice = "Here are the top three recommended times for your run based on the weather forecast:";
 
-    let details = top3Times.map((item, index) => {
-        const timeString = item.time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-        const dateString = item.time.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-        return `
-            **#${index + 1} Best Time: ${dateString} at ${timeString}**
-            * **Apparent Temperature:** ${item.apparentTemperature.toFixed(1)}°F
-            * **Temperature:** ${item.temperature.toFixed(1)}°F
-            * **Precipitation Chance:** ${item.precipitation}%
-            * **Rain Amount:** ${item.rainAmount.toFixed(2)} inches
-            * **Wind Speed:** ${item.windSpeed.toFixed(1)} mph
-        `;
-    }).join('<br><br>');
-
     const bestResult = top3Times[0];
-    if (bestResult.apparentTemperature >= 50 && bestResult.apparentTemperature <= 68 && bestResult.precipitation <= 10 && bestResult.windSpeed < 12) {
-        details += `<br><br>The top recommendation offers nearly perfect running conditions!`;
+    let specialAdvice = "";
+    if (bestResult && bestResult.apparentTemperature >= 50 && bestResult.apparentTemperature <= 70 && bestResult.precipitation <= 10 && bestResult.windSpeed < 12) {
+        specialAdvice = "The top recommendation offers nearly perfect running conditions!";
     } else {
-        details += `<br><br>Check the details for each time to choose the best option for your comfort level.`;
+        specialAdvice = "Check the details for each time to choose the best option for your comfort level.";
     }
 
     return {
-        title,
-        advice,
-        details,
+        title: `Top 3 Running Times for ${location}`,
+        advice: advice,
+        details: details,
+        specialAdvice: specialAdvice
     };
 };
 
