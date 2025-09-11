@@ -25,7 +25,7 @@ export const ResultDisplay = ({ result }) => {
                                 <h3 className="text-lg font-bold text-gray-700 mt-4 mb-2">{dayData.dayTitle}</h3>
                             )}
                             {dayData.times.map((timeData, timeIndex) => (
-                                <div key={timeIndex} className="p-4 bg-white rounded-xl shadow-md flex flex-col items-center text-center transition-all duration-300 hover:shadow-xl hover:scale-105 my-1">
+                                <div key={timeIndex} className="relative p-4 bg-white rounded-xl shadow-md flex flex-col items-center text-center transition-all duration-300 hover:shadow-xl hover:scale-105 my-1">
                                     <div className="absolute top-2 left-2 flex items-center justify-center h-8 w-8 rounded-full bg-blue-500 text-white font-bold text-lg">
                                         #{timeIndex + 1}
                                     </div>
