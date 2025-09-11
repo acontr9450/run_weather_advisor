@@ -23,6 +23,32 @@ global.ResizeObserver = vi.fn().mockImplementation(() => ({
 }));
 
 describe('App Integration', () => {
+    // Mock data that the mocked API function will return
+    const mockResult = {
+        finalLocation: 'Test City',
+        preferredTimeBlock: 'morning',
+        advice: 'Here is some advice.',
+        specialAdvice: 'This is special advice.',
+        details: [
+            {
+                dayTitle: 'Today',
+                times: [
+                    {
+                        time: '6:00 AM',
+                        temperature: '60.0',
+                        apparentTemperature: '58.0',
+                        precipitation: '5',
+                        rainAmount: '0.00',
+                        windSpeed: '5.0',
+                        humidity: '27',
+                        dewPoint: '40.0',
+                        windGusts: '6.7',
+                    },
+                ],
+            },
+        ],
+    };
+
     beforeEach(() => {
         // Clear all mocks before each test to ensure a clean slate.
         vi.clearAllMocks();
@@ -68,23 +94,41 @@ describe('App Integration', () => {
         });
     });
 
-    test('displays results after a successful API call', async () => {
-        const mockResult = {
-            title: 'Top 3 Running Times for Test City',
-            advice: 'Here are the top three recommended times...',
-            details: 'Details HTML...',
-        };
+    test('submitting the form displays the result with correct data', async () => {
+        // Mock the API call to resolve with our mock data
         api.fetchRunningAdvice.mockResolvedValue(mockResult);
 
         render(<App />);
-        fireEvent.change(screen.getByLabelText(/Location/i), { target: { value: 'Test City' } });
-        fireEvent.click(screen.getByText(/Morning/i));
-        fireEvent.click(screen.getByText(/Get My Running Advice/i));
 
+        // 1. Find and fill in the form inputs
+        const locationInput = screen.getByLabelText(/Location/i);
+        const timeButton = screen.getByText(/Morning/i);
+        const submitButton = screen.getByRole('button', { name: /Get My Running Advice/i });
+
+        fireEvent.change(locationInput, { target: { value: 'Test City' } });
+        fireEvent.click(timeButton);
+        fireEvent.click(submitButton);
+
+        // 2. Assert that the loading spinner appears
+        expect(screen.getByText('Checking the forecast...')).toBeInTheDocument();
+
+        // 3. Wait for the API call to complete and the result to appear
         await waitFor(() => {
-            // Check if the result display is present with the correct title.
-            expect(screen.getByText(mockResult.title)).toBeInTheDocument();
-            expect(screen.getByText(mockResult.advice)).toBeInTheDocument();
+            expect(screen.queryByText('Checking the forecast...')).not.toBeInTheDocument();
         });
+
+        // 4. Assert that the ResultDisplay component renders with the correct content
+        expect(screen.getByText('Top 3 Running Times for')).toBeInTheDocument();
+        expect(screen.getByText('Test City (morning)')).toBeInTheDocument();
+        expect(screen.getByText('Here is some advice.')).toBeInTheDocument();
+        expect(screen.getByText('This is special advice.')).toBeInTheDocument();
+        
+        // Assert that the cards and their contents are present
+        expect(screen.getByText('Today')).toBeInTheDocument();
+        expect(screen.getByText('6:00 AM')).toBeInTheDocument();
+        expect(screen.getByText('#1')).toBeInTheDocument();
+        expect(screen.getByText('Temp | Feels Like: 60.0°F | 58.0°F')).toBeInTheDocument();
+        expect(screen.getByText('5% chance of rain + 0.00″ of rain')).toBeInTheDocument();
+        expect(screen.getByText('Wind | Wind Gusts: 5.0 mph | 6.7 mph')).toBeInTheDocument();
     });
 });

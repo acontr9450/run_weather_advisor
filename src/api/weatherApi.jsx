@@ -121,7 +121,7 @@ export const getWeatherForCoordinates = async (latitude, longitude, forecastDays
         const params = new URLSearchParams({
             latitude: latitude,
             longitude: longitude,
-            hourly: 'temperature_2m,apparent_temperature,precipitation_probability,precipitation,rain,wind_speed_10m,relative_humidity_2m,dew_point_2m,visibility,wind_gusts_10m',
+            hourly: 'temperature_2m,apparent_temperature,precipitation_probability,precipitation,rain,wind_speed_10m,relative_humidity_2m,dew_point_2m,wind_gusts_10m',
             temperature_unit: 'fahrenheit',
             wind_speed_unit: 'mph',
             precipitation_unit: 'inch',
@@ -249,7 +249,6 @@ const processWeatherData = (weatherData, preferredTimeBlock, forecastDuration, l
                     windSpeed: weatherData.hourly.wind_speed_10m[index],
                     humidity: weatherData.hourly.relative_humidity_2m[index],
                     dewPoint: weatherData.hourly.dew_point_2m[index],
-                    visibility: weatherData.hourly.visibility[index],
                     windGusts: weatherData.hourly.wind_gusts_10m[index],
                 };
             }
@@ -305,7 +304,6 @@ const processWeatherData = (weatherData, preferredTimeBlock, forecastDuration, l
             windSpeed: item.windSpeed.toFixed(1),
             humidity: item.humidity,
             dewPoint: item.dewPoint.toFixed(1),
-            visibility: item.visibility,
             windGusts: item.windGusts,
         });
     });
