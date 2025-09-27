@@ -19,6 +19,9 @@
 .env.test.local
 .env.production.local
 
+# public images
+/public/Run_WLogo.jpg
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
